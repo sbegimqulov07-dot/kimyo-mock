@@ -232,6 +232,34 @@ figure.fig img{max-width:min(100%,420px);border-radius:10px;
   border-radius:10px;background:#0A121C;color:var(--cy);overflow-wrap:anywhere;
   max-height:140px;overflow-y:auto;user-select:all}
 
+
+/* ---------- ogohlantirish va modal ---------- */
+.warnbox{margin-top:20px;padding:15px 16px;border-radius:12px;
+  border:1px solid rgba(255,79,216,.5);background:var(--mg-dim);
+  font-family:var(--serif);font-size:15px;line-height:1.6;
+  box-shadow:0 0 26px -12px rgba(255,79,216,.8)}
+.warnbox .wt{display:block;font-family:var(--sans);font-weight:700;font-size:13px;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--mg);margin-bottom:8px}
+.warnbox b{color:var(--mg);font-family:var(--sans);font-weight:600}
+.modal-bg{position:fixed;inset:0;z-index:80;background:rgba(4,7,12,.86);
+  -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);
+  display:flex;align-items:flex-start;justify-content:center;padding:18px;overflow-y:auto}
+.modal{max-width:540px;width:100%;margin:auto;
+  background:linear-gradient(180deg,var(--surface-2),var(--surface));
+  border:1px solid rgba(255,79,216,.35);border-radius:16px;padding:24px 20px;
+  box-shadow:0 0 60px -18px rgba(255,79,216,.7), 0 30px 60px -30px #000}
+.modal h3{font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0 0 10px}
+.modal h3 span{color:var(--mg)}
+.modal .foot{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;align-items:center}
+.modal .foot .spacer{flex:1}
+.linky{background:none;border:0;color:var(--faint);font-size:12.5px;text-decoration:underline;
+  text-underline-offset:3px;padding:6px 0;cursor:pointer;font-family:var(--sans)}
+.linky:hover{color:var(--mg)}
+.bigwarn{padding:16px 18px;border-radius:12px;border:1px solid rgba(255,92,114,.55);
+  background:var(--rd-dim);box-shadow:0 0 28px -12px rgba(255,92,114,.8)}
+.bigwarn b{color:var(--rd)}
+.pcount{font-family:var(--mono);font-size:12.5px;color:var(--li);margin-top:10px}
+
 /* ---------- rasm yuklash ---------- */
 .uparea{border:1.5px dashed var(--line-2);border-radius:12px;padding:20px 16px;text-align:center;
   background:rgba(255,79,216,.04);transition:border-color .15s}
@@ -553,7 +581,7 @@ const fmt = n => (Math.round(n*100)/100).toString().replace(".", ",");
 function b64e(s){ return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
 function b64d(s){ return decodeURIComponent(escape(atob(s.replace(/-/g,"+").replace(/_/g,"/")))); }
 function makeCode(st){
-  return "MS3-" + b64e(JSON.stringify({ v:1, n:st.name, g:st.group, u:st.used || 0, a:st.answers }));
+  return "MS3-" + b64e(JSON.stringify({ v:1, n:st.name, g:st.group, u:st.used || 0, p:st.photos || 0, z:st.noPhotoReason || "", a:st.answers }));
 }
 function readCode(code){
   const c = String(code).trim().replace(/\s/g,"");
@@ -642,6 +670,7 @@ function renderQ(){
     $("#qPage").textContent = t.page + "-bet";
     body.appendChild(el("p","eyebrow", t.title));
     body.appendChild(el("div","qtext", "<p style='margin:8px 0 0'>" + t.stem + "</p>"));
+    body.appendChild(el("div","warnbox", "<span class=wt>⚠ Daftaringizni tartibli yozing</span>" + "Bu topshiriqning <b>to‘liq yechimini daftarga tartibli, o‘qish mumkin qilib</b> yozing: reaksiya tenglamalari, tenglamalar sistemasi, har bir hisob-kitob qadami ko‘rinib tursin.<br><br>" + "Test tugagach <b>daftar rasmini shu saytga yuklaysiz</b> — «Yakunlash» tugmasi shunda ochiladi. Rasm yuborilmasa yozma ish tekshirilmaydi va <b>75 ball yo‘qoladi</b>."));
     const box = el("div","answerbox");
     if (t.bands){
       t.bands.forEach((b, ix) => {
@@ -668,7 +697,7 @@ function renderQ(){
       box.appendChild(el("p","hint", t.note));
     }
     body.appendChild(box);
-    body.appendChild(el("p","hint","To‘liq yechimni daftarga yozing — oraliq qadamlar uchun ball ustoz tekshirgandan keyin qo‘shiladi."));
+    
   }
   $("#btnPrev").disabled = (n === 1);
   $("#btnNext").disabled = (n === NQ);
@@ -710,9 +739,61 @@ function tick(){
   };
   step(); timer = setInterval(step, 1000);
 }
+/* «Yakunlash» bosilganda: avval daftar rasmlari so'raladi. */
+function openFinishGate(){
+  if (!ENDPOINT){ finish(false); return; }
+  if ($("#finishGate")) return;
+  const bg = el("div","modal-bg"); bg.id = "finishGate";
+  const m = el("div","modal");
+  m.appendChild(el("h3", null, "Daftar rasmini <span>yuborish shart</span>"));
+  m.appendChild(el("p","note",
+    "41, 42 va 43-topshiriqlarning daftardagi to‘liq yechimini rasmga olib yuklang. " +
+    "<b>Rasmsiz yozma ish tekshirilmaydi</b> — 75 ballning katta qismi yo‘qoladi. " +
+    "Hamma varaq ko‘rinsin, yozuv o‘qilsin."));
+  const cnt = el("p","pcount"); cnt.id = "gateCount";
+  const refresh = () => {
+    const n = S.photos || 0;
+    cnt.textContent = n ? "✓ " + n + " ta rasm yuborildi" : "";
+    const b = $("#gateFinish");
+    if (b) b.disabled = n === 0 && !S.noPhotoReason;
+  };
+  m.appendChild(uploadBlock(S, refresh));
+  m.appendChild(cnt);
+
+  const foot = el("div","foot");
+  const back = el("button","btn ghost sm","Testga qaytish");
+  back.onclick = () => bg.remove();
+  const fin = el("button","btn","Yakunlash"); fin.id = "gateFinish";
+  fin.disabled = !(S.photos || 0) && !S.noPhotoReason;
+  fin.onclick = () => { bg.remove(); finish(false); };
+  foot.appendChild(back); foot.appendChild(el("span","spacer")); foot.appendChild(fin);
+  m.appendChild(foot);
+
+  const esc = el("button","linky","Rasm yuklay olmayapman");
+  esc.onclick = () => {
+    esc.remove();
+    const w = el("div"); w.style.marginTop = "12px";
+    w.appendChild(el("p","hint","Sababini yozing — ustozingiz ko‘radi. Rasmni keyin Telegramga yuborishingiz kerak bo‘ladi."));
+    const ta = document.createElement("textarea");
+    ta.className = "inp"; ta.rows = 2; ta.style.marginTop = "8px";
+    ta.placeholder = "Masalan: telefonim rasmga ololmayapti, Telegramdan yuboraman";
+    ta.oninput = () => {
+      S.noPhotoReason = ta.value.trim().length >= 12 ? ta.value.trim() : "";
+      save(LS, S); refresh();
+    };
+    w.appendChild(ta);
+    m.insertBefore(w, foot);
+  };
+  m.insertBefore(esc, foot);
+
+  bg.appendChild(m);
+  bg.onclick = e => { if (e.target === bg) bg.remove(); };
+  document.body.appendChild(bg);
+  refresh();
+}
 function finish(auto){
-  if (!auto && !confirm("Testni yakunlaysizmi? Yakunlangandan keyin javoblarni o‘zgartirib bo‘lmaydi.")) return;
   if (timer) clearInterval(timer);
+  const gate = $("#finishGate"); if (gate) gate.remove();
   S.done = true;
   S.used = Math.round((180*60*1000 - Math.max(0, S.endsAt - Date.now()))/1000);
   save(LS, S);
@@ -748,6 +829,7 @@ function renderResult(){
   add("Sarflangan vaqt", Math.floor((S.used||0)/60) + " daq");
   card.appendChild(brk);
   r.appendChild(card);
+  if (ENDPOINT) r.appendChild(photoPanel(S));
 
   const codePanel = el("div","panel");
   codePanel.appendChild(el("h2",null,"Natija kodi — ustozingizga yuboring"));
@@ -776,7 +858,6 @@ function renderResult(){
   cpBtn.onclick = () => copy(code, "Kod nusxalandi");
   pb.appendChild(cpBtn);
   codePanel.appendChild(pb);
-  if (ENDPOINT) r.appendChild(photoPanel(S));
   r.appendChild(codePanel);
 
   const rp = el("div","panel");
@@ -863,22 +944,19 @@ async function uploadPhoto(file, row){
   }
   return { ok, url, preview, kb: Math.round(b64.length * 0.75 / 1024) };
 }
-function photoPanel(st){
-  const p = el("div","panel");
-  p.appendChild(el("h2", null, "Daftar rasmlarini yuborish"));
-  const pb = el("div","pb");
-  pb.appendChild(el("p","note","41, 42 va 43-topshiriqlarning to‘liq yechimini daftarda yozgan bo‘lsangiz — rasmga olib shu yerga yuklang. Bir necha rasmni birdan tanlashingiz mumkin. Rasm siqiladi, internetingiz kam sarflanadi."));
+function uploadBlock(st, onChange){
+  const pb = el("div");
   const area = el("div","uparea");
   area.style.marginTop = "14px";
   area.appendChild(el("p","hint","Telefonda kamera ochiladi, kompyuterda fayl tanlanadi"));
   const inp = document.createElement("input");
-  inp.type = "file"; inp.accept = "image/*"; inp.multiple = true; inp.id = "photoInput";
+  inp.type = "file"; inp.accept = "image/*"; inp.multiple = true;
   inp.style.display = "none";
   const btn = el("button","btn mg","Rasm tanlash");
   btn.onclick = () => inp.click();
   area.appendChild(btn); area.appendChild(inp);
   pb.appendChild(area);
-  const list = el("div","uplist"); list.id = "upList";
+  const list = el("div","uplist");
   pb.appendChild(list);
 
   inp.onchange = async () => {
@@ -900,12 +978,29 @@ function photoPanel(st){
         im.src = r.preview;
         item.className = "upitem " + (r.ok ? "ok" : "er");
         stt.textContent = r.ok ? "✓ yuborildi · " + r.kb + " KB" : "✗ xato";
+        if (r.ok){ st.photos = (st.photos || 0) + 1; save(LS, st); }
       } catch (e) {
         item.className = "upitem er";
         stt.textContent = "✗ " + (e.message || "yuborilmadi");
       }
+      if (onChange) onChange();
     }
   };
+  return pb;
+}
+function photoPanel(st){
+  const p = el("div","panel");
+  p.appendChild(el("h2", null, "Daftar rasmlarini yuborish"));
+  const pb = el("div","pb");
+  if (!(st.photos || 0)){
+    pb.appendChild(el("div","bigwarn",
+      "<b>Hali birorta rasm yuborilmagan.</b> 41–43-topshiriqlarning daftardagi yechimini " +
+      "rasmga olib shu yerdan yuklang — aks holda yozma ish tekshirilmaydi."));
+  } else {
+    pb.appendChild(el("p","pcount", "✓ " + st.photos + " ta rasm yuborilgan. Yana qo‘shishingiz mumkin."));
+  }
+  pb.appendChild(el("p","note","Bir necha rasmni birdan tanlashingiz mumkin. Rasm siqiladi, internetingiz kam sarflanadi."));
+  pb.appendChild(uploadBlock(st, () => { const r = $("#result"); if (r && !r.hidden) renderResult(); }));
   p.appendChild(pb);
   return p;
 }
@@ -1112,7 +1207,7 @@ async function addCodes(){
     try {
       const o = readCode(c);
       const id = hashId((o.n || "") + "|" + (o.g || "") + "|" + JSON.stringify(o.a));
-      await dbSave({ id, n:o.n || "Noma‘lum", g:o.g || "", u:o.u || 0, a:o.a, marks:{}, graded:false });
+      await dbSave({ id, n:o.n || "Noma‘lum", g:o.g || "", u:o.u || 0, a:o.a, ph:o.p||0, izoh:o.z||"", marks:{}, graded:false });
       ok++;
     } catch (e) { bad++; }
   }
@@ -1140,7 +1235,7 @@ async function fetchJournal(){
       const o = readCode(it.kod);
       const id = hashId((o.n || "") + "|" + (o.g || "") + "|" + JSON.stringify(o.a));
       if (rows.some(r2 => r2.id === id)){ skipped++; continue; }
-      dbSave({ id, n:o.n || it.ism || "Noma‘lum", g:o.g || it.guruh || "", u:o.u || 0, a:o.a, rasm: it.rasm || "", marks:{}, graded:false });
+      dbSave({ id, n:o.n || it.ism || "Noma‘lum", g:o.g || it.guruh || "", u:o.u || 0, a:o.a, rasm: it.rasm || "", ph:o.p||0, izoh:o.z||"", marks:{}, graded:false });
       added++;
     } catch (e) { skipped++; }
   }
@@ -1167,7 +1262,7 @@ function gradeArea(){
     });
     b.appendChild(box);
   } else if (ENDPOINT) {
-    b.appendChild(el("p","hint","Bu o‘quvchi saytga rasm yuklamagan — Telegramdagi rasmga qarang."));
+    b.appendChild(el("div","bigwarn", "<b>Bu o‘quvchi saytga rasm yuklamagan.</b>" + (row.izoh ? " Sababi: «" + esc(row.izoh) + "»" : "") + " Telegramdagi rasmga qarang yoki qaytadan so‘rang."));
   }
   row.marks = row.marks || {};
   const sc = scoreOf(row.a);
@@ -1276,7 +1371,7 @@ $("#goStart").onclick = startExam;
 $("#goTeacher").onclick = () => { renderTeacher(); show("teacher"); };
 $("#btnPrev").onclick = () => { if (cur > 1){ cur--; renderQ(); window.scrollTo(0,0); } };
 $("#btnNext").onclick = () => { if (cur < NQ){ cur++; renderQ(); window.scrollTo(0,0); } };
-$("#btnFinish").onclick = () => finish(false);
+$("#btnFinish").onclick = openFinishGate;
 $("#toggleNav").onclick = () => { $("#navpanel").hidden = !$("#navpanel").hidden; };
 document.addEventListener("keydown", e => {
   if ($("#exam").hidden) return;
