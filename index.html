@@ -676,9 +676,19 @@ function renderResult(){
   codePanel.appendChild(el("h2",null,"Natija kodi — ustozingizga yuboring"));
   const pb = el("div","pb");
   if (ENDPOINT){
-    const st = el("p","note","Natija ustozga yuborilmoqda…"); st.id = "sendState";
+    const st = el("p","note", S.sent
+      ? "✓ <b>Natija ustozga yuborilgan.</b> Sahifani qayta ochsangiz ham ikkinchi marta yuborilmaydi."
+      : "Natija ustozga yuborilmoqda…");
+    st.id = "sendState";
+    if (S.sent) st.style.color = "var(--ok)";
     pb.appendChild(st);
-    sendResult(S, sc);
+    if (!S.sent) sendResult(S, sc);          // faqat bir marta
+    else {
+      const b = el("button","btn ghost sm","Qayta yuborish");
+      b.style.margin = "8px 0";
+      b.onclick = () => { b.remove(); $("#sendState").textContent = "Yuborilmoqda…"; sendResult(S, sc); };
+      pb.appendChild(b);
+    }
   }
   pb.appendChild(el("p","note","Quyidagi kodni nusxalab, daftaringizning rasmi bilan birga ustozingizga (Telegram) yuboring. Kod ichida barcha javoblaringiz bor — ustoz uni panelga joylashtirib, yakuniy ballni chiqaradi."));
   const code = makeCode(S);
