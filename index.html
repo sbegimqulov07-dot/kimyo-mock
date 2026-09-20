@@ -832,11 +832,13 @@ function renderResult(){
   if (ENDPOINT) r.appendChild(photoPanel(S));
 
   const codePanel = el("div","panel");
+  codePanel.id = "codePanel";
+  if (ENDPOINT) codePanel.hidden = true;          // faqat yuborilmasa ochiladi
   codePanel.appendChild(el("h2",null,"Natija kodi — ustozingizga yuboring"));
   const pb = el("div","pb");
   if (ENDPOINT){
     const st = el("p","note", S.sent
-      ? "✓ <b>Natija ustozga yuborilgan.</b> Sahifani qayta ochsangiz ham ikkinchi marta yuborilmaydi."
+      ? "✓ <b>Natija ustozga yuborilgan.</b> Boshqa hech narsa qilish shart emas."
       : "Natija ustozga yuborilmoqda…");
     st.id = "sendState";
     if (S.sent) st.style.color = "var(--ok)";
@@ -849,7 +851,7 @@ function renderResult(){
       pb.appendChild(b);
     }
   }
-  pb.appendChild(el("p","note","Quyidagi kodni nusxalab, daftaringizning rasmi bilan birga ustozingizga (Telegram) yuboring. Kod ichida barcha javoblaringiz bor — ustoz uni panelga joylashtirib, yakuniy ballni chiqaradi."));
+  pb.appendChild(el("p","note","Natija ustozga avtomatik yuborilmadi. Quyidagi kodni nusxalab, Telegram orqali ustozingizga yuboring — ichida barcha javoblaringiz bor."));
   const code = makeCode(S);
   const cb = el("div","codebox", code); cb.id = "codeBox";
   pb.appendChild(cb);
@@ -1024,11 +1026,12 @@ async function sendResult(st, sc){
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(payload)
     });
-    set("✓ <b>Natija ustozga yuborildi.</b> Baribir quyidagi kodni ham saqlab qo‘ying — ustoz so‘rasa yuborasiz.", "var(--ok)");
+    set("✓ <b>Natija ustozga yuborildi.</b> Boshqa hech narsa qilish shart emas.", "var(--li)");
     try { S.sent = true; save(LS, S); } catch (e) {}
   } catch (e) {
     const n = $("#sendState");
-    set("✗ <b>Natijani yuborib bo‘lmadi</b> (internet uzilgan bo‘lishi mumkin). Quyidagi kodni ustozingizga qo‘lda yuboring.", "var(--bad)");
+    set("✗ <b>Natijani yuborib bo‘lmadi</b> (internet uzilgan bo‘lishi mumkin). Pastdagi kodni ustozingizga qo‘lda yuboring.", "var(--rd)");
+    const cp = $("#codePanel"); if (cp) cp.hidden = false;
     if (n && !n.nextElementSibling?.classList?.contains("retry")){
       const b = el("button","btn ghost sm retry","Qayta yuborish");
       b.style.margin = "8px 0";
