@@ -581,7 +581,9 @@ const fmt = n => (Math.round(n*100)/100).toString().replace(".", ",");
 function b64e(s){ return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
 function b64d(s){ return decodeURIComponent(escape(atob(s.replace(/-/g,"+").replace(/_/g,"/")))); }
 function makeCode(st){
-  return "MS3-" + b64e(JSON.stringify({ v:1, n:st.name, g:st.group, u:st.used || 0, p:st.photos || 0, z:st.noPhotoReason || "", a:st.answers }));
+  // Kod FAQAT ism+guruh+javoblardan iborat. Vaqt yoki rasm soni qo‘shilsa,
+  // har yuborishda kod o‘zgarib, jadvalda yangi qator ochilib ketadi.
+  return "MS3-" + b64e(JSON.stringify({ v:1, n:st.name, g:st.group, a:st.answers }));
 }
 function readCode(code){
   const c = String(code).trim().replace(/\s/g,"");
