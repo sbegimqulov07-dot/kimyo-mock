@@ -910,16 +910,34 @@ function renderResult(){
   r.appendChild(again);
 }
 /* ---------- daftar rasmlarini yuborish ---------- */
+/* Rasmni siqadi. Telefon formati (HEIC va h.k.) ochilmasa, faylni
+   o‘zgartirmasdan, asl holida yuboradi — shunda hech kim rasmsiz qolmaydi. */
+async function fileToB64(file){
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 8192)
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i+8192));
+  return btoa(bin);
+}
 async function compressImage(file, maxPx, q){
   let bmp = null;
   try { bmp = await createImageBitmap(file, { imageOrientation:"from-image" }); }
   catch (e) {
-    bmp = await new Promise((res, rej) => {
-      const i = new Image(), u = URL.createObjectURL(file);
-      i.onload = () => { URL.revokeObjectURL(u); res(i); };
-      i.onerror = () => { URL.revokeObjectURL(u); rej(new Error("rasm ochilmadi")); };
-      i.src = u;
-    });
+    try {
+      bmp = await new Promise((res, rej) => {
+        const i = new Image(), u = URL.createObjectURL(file);
+        const t = setTimeout(() => { URL.revokeObjectURL(u); rej(new Error("vaqt tugadi")); }, 12000);
+        i.onload  = () => { clearTimeout(t); URL.revokeObjectURL(u); res(i); };
+        i.onerror = () => { clearTimeout(t); URL.revokeObjectURL(u); rej(new Error("ochilmadi")); };
+        i.src = u;
+      });
+    } catch (e2) { bmp = null; }
+  }
+  if (!bmp){
+    // siqib bo‘lmadi — aslini yuboramiz
+    const b64 = await fileToB64(file);
+    return { b64: b64, preview: "", mime: file.type || "image/jpeg", xom: true };
   }
   let w = bmp.width, h = bmp.height;
   const k = Math.min(1, maxPx / Math.max(w, h));
@@ -930,13 +948,14 @@ async function compressImage(file, maxPx, q){
   ctx.drawImage(bmp, 0, 0, w, h);
   if (bmp.close) bmp.close();
   const url = c.toDataURL("image/jpeg", q);
-  return { b64: url.split(",")[1], preview: url };
+  return { b64: url.split(",")[1], preview: url, mime: "image/jpeg", xom: false };
 }
 async function uploadPhoto(file, row){
-  const { b64, preview } = await compressImage(file, 1500, 0.72);
+  const { b64, preview, mime, xom } = await compressImage(file, 1500, 0.72);
+  if (b64.length > 24000000) throw new Error("rasm juda katta, kichikroq oling");
   const body = JSON.stringify({
     tur:"rasm", kod: row.kod, ism: row.ism, guruh: row.guruh,
-    variant:"3-variant", belgi:"daftar", data: b64
+    variant:"3-variant", belgi:"daftar", data: b64, mime: mime, xom: !!xom
   });
   let ok = false, url = "";
   try {
@@ -946,7 +965,7 @@ async function uploadPhoto(file, row){
     await fetch(ENDPOINT, { method:"POST", mode:"no-cors", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body });
     ok = true; url = "";
   }
-  return { ok, url, preview, kb: Math.round(b64.length * 0.75 / 1024) };
+  return { ok, url, preview, xom: !!xom, kb: Math.round(b64.length * 0.75 / 1024) };
 }
 function uploadBlock(st, onChange){
   const pb = el("div");
@@ -981,7 +1000,7 @@ function uploadBlock(st, onChange){
         const r = await uploadPhoto(f, row);
         im.src = r.preview;
         item.className = "upitem " + (r.ok ? "ok" : "er");
-        stt.textContent = r.ok ? "✓ yuborildi · " + r.kb + " KB" : "✗ xato";
+        stt.textContent = r.ok ? "✓ yuborildi · " + r.kb + " KB" + (r.xom ? " (asl holida)" : "") : "✗ xato";
         if (r.ok){ st.photos = (st.photos || 0) + 1; save(LS, st); }
       } catch (e) {
         item.className = "upitem er";
