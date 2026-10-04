@@ -277,6 +277,12 @@ figure.fig img{max-width:min(100%,420px);border-radius:10px;
 
 /* ---------- teacher ---------- */
 #teacher{padding-block:24px 48px;display:grid;gap:18px}
+.imgal{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:8px}
+.imgcard{position:relative;margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0a0f16}
+.imgcard img{width:100%;height:240px;object-fit:contain;cursor:zoom-in;display:block;transition:transform .2s}
+.imgcard figcaption{font-size:11px;color:var(--muted);text-align:center;padding:5px}
+.imrot{position:absolute;top:6px;right:6px;width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,.6);color:#fff;cursor:pointer;font-size:17px;line-height:1}
+.imrot:hover{background:rgba(0,0,0,.85)}
 .tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table.grid{width:100%;border-collapse:collapse;font-size:13.5px}
 table.grid th,table.grid td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
@@ -1190,6 +1196,12 @@ function renderTeacher(){
     cp.style.marginTop = "10px";
     cp.onclick = () => copy(tsv(), "Jadval nusxalandi — Excelga qo‘ying");
     foot.appendChild(cp);
+    if (ENDPOINT){
+      const wrAll = el("button","btn ghost sm","Natijalarni Sheets jurnaliga yozish");
+      wrAll.style.margin = "10px 0 0 10px";
+      wrAll.onclick = postAllBaho;
+      foot.appendChild(wrAll);
+    }
     tp.appendChild(foot);
   }
   t.appendChild(tp);
@@ -1226,7 +1238,7 @@ async function addCodes(){
     try {
       const o = readCode(c);
       const id = hashId((o.n || "") + "|" + (o.g || "") + "|" + JSON.stringify(o.a));
-      await dbSave({ id, n:o.n || "Noma‘lum", g:o.g || "", u:o.u || 0, a:o.a, ph:o.p||0, izoh:o.z||"", marks:{}, graded:false });
+      await dbSave({ id, n:o.n || "Noma‘lum", g:o.g || "", u:o.u || 0, a:o.a, kod: c, ph:o.p||0, izoh:o.z||"", marks:{}, graded:false });
       ok++;
     } catch (e) { bad++; }
   }
@@ -1254,12 +1266,48 @@ async function fetchJournal(){
       const o = readCode(it.kod);
       const id = hashId((o.n || "") + "|" + (o.g || "") + "|" + JSON.stringify(o.a));
       if (rows.some(r2 => r2.id === id)){ skipped++; continue; }
-      dbSave({ id, n:o.n || it.ism || "Noma‘lum", g:o.g || it.guruh || "", u:o.u || 0, a:o.a, rasm: it.rasm || "", ph:o.p||0, izoh:o.z||"", marks:{}, graded:false });
+      dbSave({ id, n:o.n || it.ism || "Noma‘lum", g:o.g || it.guruh || "", u:o.u || 0, a:o.a, kod: it.kod || "", rasm: it.rasm || "", ph:o.p||0, izoh:o.z||"", marks:{}, graded:false });
       added++;
     } catch (e) { skipped++; }
   }
   renderTeacher();
   toast(added + " ta yangi natija yuklandi" + (skipped ? " (" + skipped + " tasi allaqachon bor edi)" : ""));
+}
+const num2 = x => Math.round((+x || 0) * 100) / 100;
+/* Baholangan natijani Google Sheets jurnaliga qaytarib yozadi.
+   Apps Script'da `tur:"baho"` qo'llab-quvvatlansa — E,F,G,H,I,M,N,O,Q ustunlari
+   aniq yangilanadi; qo'llab-quvvatlanmasa, asosiy ballar baribir yoziladi. */
+async function postBaho(row){
+  if (!ENDPOINT){ toast("Google Sheets ulanmagan"); return false; }
+  if (!row.kod){ toast(row.n + ": kod yo‘q — Sheets‘ga yozib bo‘lmaydi"); return false; }
+  const r = rowScore(row);
+  const body = JSON.stringify({
+    tur:"baho", kalit:(load(LSK)||"").trim(), kod:row.kod,
+    ism:row.n, guruh:row.g || "", variant:"27-sentabr 1-smena",
+    test:num2(r.sc.test), yozma:num2(r.written), jami:num2(r.total),
+    foiz:num2(r.pct), baho:r.grade || "",
+    m41:num2(row.graded ? subTotal(row,41) : r.sc.auto[41]),
+    m42:num2(row.graded ? subTotal(row,42) : r.sc.auto[42]),
+    m43:num2(row.graded ? subTotal(row,43) : r.sc.auto[43])
+  });
+  try {
+    const res = await fetch(ENDPOINT, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body });
+    const j = await res.json();
+    if (j && j.baho) return true;                 // maxsus baho-ishlovchi ishladi
+    if (j && j.ok)  { return "asosiy"; }           // eski Apps Script — asosiy ballar yozildi
+    toast(row.n + ": " + ((j && j.xato) || "yozilmadi")); return false;
+  } catch(e){
+    toast(row.n + ": Sheets javob bermadi (jadvalni nusxalab qo‘ying)"); return false;
+  }
+}
+async function postAllBaho(){
+  if (!ENDPOINT){ toast("Google Sheets ulanmagan"); return; }
+  const list = rows.filter(r => r.kod);
+  if (!list.length){ toast("Kod bor natija yo‘q"); return; }
+  toast(list.length + " ta natija Sheets‘ga yozilmoqda…");
+  let ok = 0, part = 0;
+  for (const r of list){ const res = await postBaho(r); if (res === true) ok++; else if (res === "asosiy") part++; }
+  toast(ok + " ta to‘liq, " + part + " ta asosiy ball yozildi" + (part ? " (41/42/43 ustunlari uchun Apps Script‘ga baho qo‘shing)" : ""));
 }
 function gradeArea(){
   const row = rows.find(r => r.id === gradingId);
@@ -1270,15 +1318,28 @@ function gradeArea(){
   b.appendChild(el("p","note","O‘quvchining daftari rasmiga qarab katakchalarni belgilang. Avtomatik tekshirilgan yakuniy javoblar oldindan belgilab qo‘yilgan — ularni ham o‘zgartirishingiz mumkin."));
   if (row.rasm){
     const links = String(row.rasm).split(new RegExp("[\r\n]+")).filter(Boolean);
-    const box = el("div","saw");
-    box.appendChild(el("dt", null, "Daftar rasmlari (" + links.length + " ta)"));
+    const box = el("div"); box.style.marginTop = "6px";
+    box.appendChild(el("p","eyebrow", "Daftar rasmlari (" + links.length + " ta) — bosib kattalashtiring, ⟳ bilan buring"));
+    const gal = el("div","imgal");
     links.forEach((u, i) => {
-      const d = el("dd");
+      const id = (String(u).match(/[-\w]{25,}/) || [])[0];
+      const full = id ? ("https://drive.google.com/file/d/" + id + "/view") : u;
+      const fig = el("figure","imgcard");
+      const img = document.createElement("img");
+      img.loading = "lazy"; img.alt = (i+1) + "-rasm";
+      img.src = id ? ("https://drive.google.com/thumbnail?id=" + id + "&sz=w1600") : u;
+      img.onclick = () => window.open(full, "_blank", "noopener");
+      let deg = 0;
+      const rot = el("button","imrot","⟳"); rot.type = "button"; rot.title = "Burish";
+      rot.onclick = (e) => { e.stopPropagation(); deg = (deg + 90) % 360; img.style.transform = "rotate(" + deg + "deg)"; };
+      const cap = document.createElement("figcaption");
       const a = document.createElement("a");
-      a.href = u; a.target = "_blank"; a.rel = "noopener";
-      a.textContent = (i+1) + "-rasmni ochish ↗";
-      d.appendChild(a); box.appendChild(d);
+      a.href = full; a.target = "_blank"; a.rel = "noopener"; a.textContent = (i+1) + "-rasm ↗";
+      cap.appendChild(a);
+      fig.appendChild(img); fig.appendChild(rot); fig.appendChild(cap);
+      gal.appendChild(fig);
     });
+    box.appendChild(gal);
     b.appendChild(box);
   } else if (ENDPOINT) {
     b.appendChild(el("div","bigwarn", "<b>Bu o‘quvchi saytga rasm yuklamagan.</b>" + (row.izoh ? " Sababi: «" + esc(row.izoh) + "»" : "") + " Telegramdagi rasmga qarang yoki qaytadan so‘rang."));
@@ -1349,6 +1410,17 @@ function gradeArea(){
   done.style.marginTop = "20px";
   done.onclick = async () => { row.graded = true; await dbSave(row); gradingId = null; renderTeacher(); toast("Saqlandi"); };
   b.appendChild(done);
+  if (ENDPOINT){
+    const wr = el("button","btn ghost","Sheets jurnaliga yozish");
+    wr.style.margin = "20px 0 0 10px";
+    wr.onclick = async () => {
+      row.graded = true; await dbSave(row);
+      const res = await postBaho(row);
+      if (res === true) toast(row.n + ": jurnalga to‘liq yozildi");
+      else if (res === "asosiy") toast(row.n + ": asosiy ballar yozildi (M/N/O uchun Apps Script baho qo‘shing)");
+    };
+    b.appendChild(wr);
+  }
   const cancel = el("button","btn ghost","Yopish");
   cancel.style.margin = "20px 0 0 10px";
   cancel.onclick = () => { gradingId = null; renderTeacher(); };
