@@ -1,7 +1,10 @@
-# Kimyo mock — Milliy sertifikat, 3-variant
+# Kimyo mock — Milliy sertifikat, 4-variant
 
 Premium kimyo 3-kitob (Boymurodov · Ergashev, "Kelajak mediklari"), 2-modul,
-3-variant — kitobning 207–210-betlari. 43 topshiriq, 180 daqiqa.
+4-variant — kitobning 211–214-betlari. 43 topshiriq, 180 daqiqa.
+
+Javoblar kaliti kitobdan olinmagan: har bir masala qayta ishlanib, sonlar
+qaytarib qo'yib tekshirilgan. 41–43 uchun baholash mezoni yangidan tuzilgan.
 
 ## Sayt
 
